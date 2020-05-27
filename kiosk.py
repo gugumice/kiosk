@@ -2,17 +2,18 @@
 #!/usr/bin/env python3
 
 import argparse
-from ledbutttons import ledButtons, pushButtons
 from printutils import getReport, printReport
+from leds import ledButtons, pushButtons
+
 import serial
 import re
 from time import sleep
 import threading
 import logging
 
-BUTTON_PINS=(22,27,17)
-LED_PINS=(23,25,24)
-BUZ_PIN=26
+BUTTON_PINS=(17,27,22)
+LED_PINS=(13,19,26)
+BUZ_PIN=12
 HOST='10.100.50.104'
 PORT='/dev/ttyACM0'
 DEFAULT_BUTTON=0
@@ -60,9 +61,8 @@ def make_report(url):
         make_report=True
         try:
             os.remove(f)
-            pass
         except:
-            pass
+            logging.error('Error deleting {}.'.format(f))
     return(make_report)
 
 def main(port=None,host=None):
@@ -70,6 +70,7 @@ def main(port=None,host=None):
     wdog=True
     try:
         wd=open('/dev/watchdog','w')
+        logging.info('Watchdog enabled')
     except:
         wdog=False
         logging.error('Watchdog disabled')
@@ -93,11 +94,12 @@ def main(port=None,host=None):
         leds.blink(n=5,s=True)
     try:
         while running:
-            if bttn.timed_out():
-                active_button=update_leds(leds,DEFAULT_BUTTON)
             if bttn.pressed() is not None:
                 b=bttn.pressed()
                 active_button=update_leds(leds,b)
+            if bttn.timed_out():
+                if active_button != DEFAULT_BUTTON:
+                    active_button=update_leds(leds,DEFAULT_BUTTON)
             rep_code=bcr.next()
             if len(rep_code) > 0:
                 u=make_URL(rep_code,host,LANGUAGES[active_button])
@@ -116,7 +118,6 @@ def main(port=None,host=None):
                 #Watchdog
                 if wdog:
                     print(1,file = wd, flush = True)
-                pass
     except KeyboardInterrupt:
         if wdog:
             print('V',file = wd, flush = True)
