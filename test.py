@@ -38,7 +38,6 @@ def main():
                 if active_button != DEFAULT_BUTTON:
                     logging.info('Button {} timeout. Reset to default {}'.format(active_button,DEFAULT_BUTTON))
                     active_button=update_leds(leds,DEFAULT_BUTTON)
-            pass
 
     except KeyboardInterrupt:
         running=False
