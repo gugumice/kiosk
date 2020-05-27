@@ -9,9 +9,10 @@ BUTTON_PINS=(17,27,22)
 LED_PINS=(13,19,26)
 BUZ_PIN=12
 DEFAULT_BUTTON=0
-BUTTON_TIMEOUT=10
+BUTTON_TIMEOUT=5
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(filename='/home/pi/test.log',filemode='w',level=logging.DEBUG)
 
 def update_leds(l,b):
     logging.debug('Active button: {}'.format(b))
@@ -23,7 +24,7 @@ def main():
     logging.debug('Test LED PINs {}, Button pins {}, buzzer {}'.format(LED_PINS,BUTTON_PINS,BUZ_PIN))
     leds=ledButtons(LED_PINS,BUZ_PIN)
     bttn=pushButtons(BUTTON_PINS,timeout=BUTTON_TIMEOUT)
-    leds.blink(n=1,t=.2,s=True)
+    leds.blink(n=3,t=1,s=True)
     sleep(.5)
     leds.on(DEFAULT_BUTTON)
     running=True
@@ -31,10 +32,11 @@ def main():
         while running:
             if bttn.pressed() is not None:
                 b=bttn.pressed()
+                logging.info('Button {} pressed'.format(b))
                 active_button=update_leds(leds,b)
             if bttn.timed_out():
-                print(active_button)
                 if active_button != DEFAULT_BUTTON:
+                    logging.info('Button {} timeout. Reset to default {}'.format(active_button,DEFAULT_BUTTON))
                     active_button=update_leds(leds,DEFAULT_BUTTON)
             pass
 
