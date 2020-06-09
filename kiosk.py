@@ -112,8 +112,7 @@ def main(port=None,host=None):
                     while t.is_alive():
                         leds.wave()
                 leds.off()
-                #bttn.reset()
-                #active_button=update_leds(leds,DEFAULT_BUTTON)
+                leds.on(active_button)
             else:
                 #Watchdog
                 if wdog:
