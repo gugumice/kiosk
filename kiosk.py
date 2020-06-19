@@ -1,8 +1,7 @@
-
 #!/usr/bin/env python3
 
 import argparse
-from printutils import getReport, printReport
+from printutils import getReport, printReport, setPrinter, checkDefaultPrinter
 from leds import ledButtons, pushButtons
 
 import serial
@@ -19,9 +18,13 @@ PORT='/dev/ttyACM0'
 DEFAULT_BUTTON=0
 LANGUAGES=('LAT','ENG','RUS')
 BUTTON_TIMEOUT=10 #Button timeout in secs
+BUTTON_PRINTER_RESET=1 #Button to activate printer reset at startup
 URL='http://{}/csp/sarmite/ea.kiosk.pdf.cls?HASH={}&LANG={}'
-logging.basicConfig(filename='/home/pi/kiosk.log',filemode='w',level=logging.DEBUG)
-#logging.basicConfig(level=logging.DEBUG)
+WDOG=True
+
+
+logging.basicConfig(filename='/home/pi/kiosk.log',filemode='w',level=logging.DEB                                               UG)
+logging.basicConfig(level=logging.DEBUG)
 
 class barCodeReader(object):
     def __init__(self, port='/dev/ttyACM0',
@@ -66,14 +69,14 @@ def make_report(url):
     return(make_report)
 
 def main(port=None,host=None):
-    #Watchdog
-    wdog=True
-    try:
-        wd=open('/dev/watchdog','w')
-        logging.info('Watchdog enabled')
-    except:
-        wdog=False
-        logging.error('Watchdog disabled')
+    wdog=WDOG
+    if wdog:
+        try:
+            wd=open('/dev/watchdog','w')
+            logging.info('Watchdog enabled')
+        except:
+            lswdog=False
+            logging.error('Watchdog disabled')
     active_button=DEFAULT_BUTTON
     running=False
     leds=ledButtons(LED_PINS,BUZ_PIN)
@@ -84,7 +87,6 @@ def main(port=None,host=None):
     if host is None:
         host=HOST
     bcr=barCodeReader(port)
-
     if bcr.running:
         leds.blink(n=1,t=.2,s=True)
         sleep(.5)
@@ -92,6 +94,11 @@ def main(port=None,host=None):
         running=True
     else:
         leds.blink(n=5,s=True)
+    if checkDefaultPrinter():
+        if bttn.pressed() == BUTTON_PRINTER_RESET:
+            logging.info('Printer reset init')
+            setPrinter()
+
     try:
         while running:
             if bttn.pressed() is not None:
@@ -124,7 +131,7 @@ def main(port=None,host=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Print report')
-    parser.add_argument('-port', metavar='port', type=str, help='Port for barcode reader')
+    parser.add_argument('-port', metavar='port', type=str, help='Port for barcod                                               e reader')
     parser.add_argument('-host', metavar='host', type=str, help='5M host')
     args = parser.parse_args()
     main(port=args.port,host=args.host)
