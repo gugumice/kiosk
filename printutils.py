@@ -60,13 +60,17 @@ def listPPDs(conn,filter=None):
         print(p,ppd[p])
 
 def addPrinter(conn,model='HP LaserJet Series PCL 6 CUPS'):
+    r=False
     usb_printers=conn.getDevices(include_schemes=['usb'])
+    if len(usb_printers) == 0:
+        logging.debug('No USB printers found')
+        return(r)
     try:
         ppd = conn.getPPDs(ppd_make_and_model=model)
         ppd_file=[f for f in ppd][0]
     except cups.IPPError:
         logging.error('PPD for <{}> not found'.format(model))
-        return False
+        return(r)
     #print(ppd)
     for p in usb_printers:
         dev_name=usb_printers[p]['device-make-and-model']
@@ -78,11 +82,14 @@ def addPrinter(conn,model='HP LaserJet Series PCL 6 CUPS'):
                 conn.setDefault(p_queue)
                 conn.acceptJobs(p_queue)
                 conn.enablePrinter(p_queue)
+                logging.info('Printer {} added'.format(p_queue))
             except Exception as e:
                 logging.error(e)
-
-def printReport(conn,reportPdf):
-    printReport=False
+            else:
+                r=True
+    return(r)
+def printReport(reportPdf,conn=cups.Connection()):
+    r=False
     logging.debug('Printing {}'.format(reportPdf))
     p = conn.getDefault()
     try:
@@ -92,16 +99,14 @@ def printReport(conn,reportPdf):
         logging.debug('Error printing {} {}'.format(reportPdf,e))
     else:
         logging.info('{} printed'.format(reportPdf))
-        printReport=True
-    return(printReport)
+        r=True
+    return(r)
 
-def testReport(conn):
-    testReport=False
+def testReport():
     f = getReport(url)
     logging.debug('File: {}'.format(f))
     if f is not None:
-        printReport(conn,f)
-        testReport=True
+        printReport(f)
         try:
             #pass
             os.remove(f)
@@ -112,27 +117,26 @@ def testReport(conn):
     return
 
 def setPrinter():
+    r=False
     conn=cups.Connection()
     deleteJobs(conn)
     deletePrinters(conn)
     #print(conn.getDevices(limit=1,include_schemes=['usb']))
     #print(getPPDfile(conn))
-    addPrinter(conn)
-    printReport(conn,'/usr/share/cups/data/testprint')
-
-def checkDefaultPrinter():
-    checkDefault=True
+    if addPrinter(conn):
+        printReport('/usr/share/cups/data/testprint',conn)
+        r=True
+    return(r)
+def haveDefaultPrinter():
+    r=True
     conn=cups.Connection()
     if conn.getDefault() == None:
-        logging.info('Default printer not found. Setup init.')
-        conn=None
-        setPrinter()
-        checkDefault=False
-    return(checkDefault)
+        r=False
+    return(r)
 def main():
     #setPrinter()
-    #testReport(conn)
-    checkDefaultPrinter()
+    setPrinter()
+    #testReport()
 
 if __name__=='__main__':
    logging.basicConfig(level=logging.DEBUG)
