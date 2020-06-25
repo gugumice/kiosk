@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 import argparse
-from printutils import getReport, printReport, setPrinter, checkDefaultPrinter
+from printutils import getReport, printReport, setPrinter, haveDefaultPrinter
 from leds import ledButtons, pushButtons
 
 import serial
-import re
+import re,os
 from time import sleep
 import threading
 import logging
@@ -18,13 +18,14 @@ PORT='/dev/ttyACM0'
 DEFAULT_BUTTON=0
 LANGUAGES=('LAT','ENG','RUS')
 BUTTON_TIMEOUT=10 #Button timeout in secs
+REPORT_DELAY=10 #Seconds to wait for report printout
 BUTTON_PRINTER_RESET=1 #Button to activate printer reset at startup
 URL='http://{}/csp/sarmite/ea.kiosk.pdf.cls?HASH={}&LANG={}'
-WDOG=True
+WD='/dev/watchdog'
+#WD=None
 
-
-logging.basicConfig(filename='/home/pi/kiosk.log',filemode='w',level=logging.DEB                                               UG)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(filename='/home/pi/kiosk.log',filemode='w',level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 class barCodeReader(object):
     def __init__(self, port='/dev/ttyACM0',
@@ -32,9 +33,11 @@ class barCodeReader(object):
         self.running=False
         try:
              self.fp=serial.Serial(port=port,timeout=timeout)
-             self.running=True
         except Exception as e:
              logging.error('Canot open: {}\n{}'.format(port,e))
+        else:
+             self.running=True
+
     def next(self):
         try:
             return(self.fp.readline().decode('ascii').rstrip('\r\n'))
@@ -57,26 +60,31 @@ def make_URL(bc,host,lang):
     return(req_url)
 
 def make_report(url):
-    make_report=False
+    r=False
     f=getReport(url)
     if f is not None:
-        printReport(f)
-        make_report=True
+        if printReport(f):
+            r=True
+            sleep(REPORT_DELAY)
+            try:
+                os.remove(f)
+            except Exception as e:
+                logging.error('Error deleting {}'.format(e))
+    return(r)
+
+def start_wdog(wd):
+    if wd is not None:
         try:
-            os.remove(f)
+            wd=open('WD','w')
         except:
-            logging.error('Error deleting {}.'.format(f))
-    return(make_report)
+            wd = None
+
+    logging.info('Watchdog {}'.format('disabled' if wd is None else 'enabled'))
+    return(wd)
 
 def main(port=None,host=None):
-    wdog=WDOG
-    if wdog:
-        try:
-            wd=open('/dev/watchdog','w')
-            logging.info('Watchdog enabled')
-        except:
-            lswdog=False
-            logging.error('Watchdog disabled')
+    wd=None
+    start_wdog(WD)
     active_button=DEFAULT_BUTTON
     running=False
     leds=ledButtons(LED_PINS,BUZ_PIN)
@@ -86,19 +94,30 @@ def main(port=None,host=None):
         port=PORT
     if host is None:
         host=HOST
-    bcr=barCodeReader(port)
-    if bcr.running:
-        leds.blink(n=1,t=.2,s=True)
-        sleep(.5)
-        leds.on(DEFAULT_BUTTON)
-        running=True
-    else:
-        leds.blink(n=5,s=True)
-    if checkDefaultPrinter():
-        if bttn.pressed() == BUTTON_PRINTER_RESET:
-            logging.info('Printer reset init')
-            setPrinter()
 
+    bcr=barCodeReader()
+    #Loop until BC reader OK
+    while not bcr.running:
+        leds.blink(n=1,t=.2,s=True)
+        bcr=barCodeReader(port)
+        sleep(1)
+
+    #User initiated priter reset
+    if bttn.pressed() == BUTTON_PRINTER_RESET:
+        logging.info('User printer reset init')
+        setPrinter()
+
+    #Loop until printer OK
+    while not haveDefaultPrinter():
+        leds.wave()
+        if setPrinter():
+            leds.blink(s=True)
+        else:
+            sleep(5)
+    #Checklist OK starting main loop
+    leds.blink(s=True)
+    leds.on(active_button)
+    running=True
     try:
         while running:
             if bttn.pressed() is not None:
@@ -122,16 +141,16 @@ def main(port=None,host=None):
                 leds.on(active_button)
             else:
                 #Watchdog
-                if wdog:
+                if wd is not None:
                     print(1,file = wd, flush = True)
     except KeyboardInterrupt:
-        if wdog:
+        if wd is not None:
             print('V',file = wd, flush = True)
         running=False
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Print report')
-    parser.add_argument('-port', metavar='port', type=str, help='Port for barcod                                               e reader')
+    parser.add_argument('-port', metavar='port', type=str, help='Port for barcode reader')
     parser.add_argument('-host', metavar='host', type=str, help='5M host')
     args = parser.parse_args()
     main(port=args.port,host=args.host)
