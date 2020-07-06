@@ -138,8 +138,10 @@ def main(port=None,host=None):
                     while t.is_alive():
                         leds.wave()
                 leds.off()
+                sleep(1)
                 leds.on(active_button)
             else:
+                sleep(.5)
                 #Watchdog
                 if wd is not None:
                     print(1,file = wd, flush = True)
